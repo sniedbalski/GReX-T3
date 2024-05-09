@@ -1,6 +1,6 @@
-### Plotting T3 candidates 04/18/24 updated
-### time gap between cand MJD and voltage starting time still exists
+### Plotting T3 candidates 05/08/24 updated
 ### usage: poetry run python cand_plotter.py <full .json name>
+
 
 import numpy as np
 import pandas as pd
@@ -8,10 +8,10 @@ import sys
 from matplotlib import pyplot as plt
 import xarray as xr
 import json
-from astropy.time import Time
 import os
 import logging
 from your.formats.filwriter import make_sigproc_object
+import clean_rfi
 
 T3_path = '/home/user/zghuai/GReX-T3/grex_t3/'
 sys.path.append(T3_path)
@@ -65,67 +65,37 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
 
     tab = get_cand(JSON)
     # t0 = tab["mjds"].values[0] # ToA of the candidate
-    dt = 8.192e-6 # s 
+    ds_stokesi = 1
+    dt = 8.192e-6 * ds_stokesi # s 
     Dt = 4.15 * tab["dm"].values[0] * (1/1.28**2 - 1/1.53**2) / 1e3 # delay in seconds given DM
     
     (stokesi, T0, dur) = ct.read_voltage_data(fn_vol, 
                                               timedownsample=None, 
                                               freqdownsample=None, 
                                               verbose=True, 
-                                              nbit='uint16')
+                                              nbit='float32')
     print('Done reading .nc and calc stokes I')
 
-    # number of samples in the pulse window
-    window_width = int(Dt*2 / dt) 
-    print('window size = ', window_width)
-    # ToA of the pulse in the netcdf file (in seconds)
-    t_in_nc = (tab['mjds'].values[0]-T0)*86400 
-    print('time = ', t_in_nc)
-    print('Duration = ', dur)
-    # duration of the entire netcdf file in number of time samples
-    dur = int(dur/dt)
-    print('samples = ', dur)
-    print('stokesi shape = ', stokesi.shape)
+    # choose the center of the 
+    mm = (stokesi.shape[0]//2) # assume the pulse is centered
+    window_width = int(Dt*2 / dt)
+    if v==True:
+        logging.info(f"index mm = {mm}, stokesi shape = {stokesi.shape}.")
 
-    if t_in_nc > dur*dt: # not captured in .nc, pick a random time interval to plot for now, need to log errors later.
-        # mm = stokesi.shape[0]//2
-        logging.shutdown("Cand MJD not in the NetCDF file, shutting down.")
-        return 
-        # print('not in .nc; mm = ', mm)
-    # if in the .nc file -
-    else:
-        # number of samples after the start of .nc file
-        mm = int(t_in_nc / dt) 
-        print('in .nc! mm = ', mm)
-        # deal with edge problems - if the cand index is near the beginning
-        if (mm<(window_width//2)):
-            # then make the window size smaller 
-            window_width = int(2*mm)
-            if v==True:
-                logging.info(f"Near the beginning, index = {mm}")
-            # print('near the beginning')
-        elif ((dur-mm)<window_width//2): # if near the end
-            window_width = (dur-mm)
-            if v==True:
-                logging.info(f"Near the end, index = {mm}")
-            # print('near the end', dur-mm)
-
-    # put a warning if the window size is too small 
-    if window_width < 10:
-        print("Too few samples!")
-        logging.warning(f"Window size too small! Will still proceed.")
-        return
-    print('mm = ', mm, 'windowsize = ', window_width)
-    
-    # dispersed candidate in xarray dataarray format.
+    # dispersed candidate window in xarray dataarray format.
     cand_disp = stokesi[(mm-window_width//2):(mm+window_width//2), :] 
+    # RFI clean
+    clean_rfi.clean_block(cand_disp.values, 10, 10)
+    # fill NaNs with the mean value, otherwise the Your library won't calculate dmtime for us (all NaNs in there)
+    cand_disp.values = cand_disp.fillna(np.nanmean(cand_disp))
+
     # write the dispersed pulse to a temporary .fil file
+    # do not save intermediate file 
     ct.write_sigproc(fn_tempfil, cand_disp, t_start=T0+(mm-window_width//2)*dt/86400) 
     if v==True:
         logging.info(f"Done writing to a temporary .fil file.")
-    print('Done writing to a temporary .fil')
 
-    
+    # use the whole netcdf file, no intermediate file ?
     # Using Liam's candproc_tools.py to read the temporary .fil, dedisperse, and calculate DMtime
     cand = ct.read_proc_fil(fnfil=fn_tempfil, 
                             dm=tab["dm"].values[0], 
@@ -133,7 +103,7 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
                             width=1, 
                             device=0, 
                             tstart=0,
-                            tstop=(cand_disp.time.max()-cand_disp.time.min()).values*86400,
+                            tstop=(cand_disp.time.max()-cand_disp.time.min()).values*86400, 
                             zero_topbottom=False,
                             ndm=32, 
                             dmtime_transform=True)
@@ -145,7 +115,10 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
     # (before downsampling)
     window_time = 256 * tab['ibox'].values[0] # would like to keep 256 samples after downsampling
     # find the index of the pulse 
-    mm = int((tab["mjds"].values[0] - cand.tstart)*86400 / dt)
+    mm = int(cand.data.shape[0] / 2) # assume the pulse is centered
+    if v==True:
+        logging.info(f"Writing out to .fil file, cand index mm = {mm}, cand.data shape = {cand.data.shape}.")
+    # select a smaller time window for the dedispersed pulse
     data_freqtime = cand.dedispersed[mm-window_time//2:mm+window_time//2, :] 
 
     # write to .fil
@@ -166,7 +139,7 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
                                     machine_id=0,
                                     nbeams=1,
                                     ibeam=0,
-                                    nbits=16,
+                                    nbits=32,
                                     nifs=1,
                                     barycentric=0,
                                     pulsarcentric=0,
@@ -177,8 +150,7 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
     
     sigproc_object.write_header(fn_filout)
     sigproc_object.append_spectra(data_freqtime, fn_filout)
-    if v==True:
-        logging.info(f"Done saving the dedispersed pulse into filterbank file {fn_filout}.")
+    logging.info(f"Done saving the dedispersed pulse into filterbank file {fn_filout}.")
 
     # downsampling 
     # frequency ds by 16
@@ -204,66 +176,38 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
 
 
 
-def plot_grex(cand, tab, JSON): 
+def plot_grex(cand, tab, JSON, v=False): 
 
     """
     Plots:
-        downsampled, dedispersed pulse, 
+        Downsampled, dedispersed pulse, 
         DM vs time, 
-        nearby candidates from cluster_output.csv within a larger time window.
+        Nearby candidates from cluster_output.csv within a larger time window.
     ----------
     Inputs:
     cand = downsampled, dedispersed candidate object, the first output from gen_cand() function
-    T0 = start time of the voltage file in MJD from gen_cand()
-    dur = duration of the entire netcdf file in seconds
     tab = candidate .json table from gen_cand()
     JSON = .json filename
     ----------
     Returns None
     """
-    
-    window_time = 1024 # number of samples in the downsampled window
+
+    # number of samples in the downsampled window
+    window_time = 1024
     ntime, nchans = cand.dedispersed.shape[0], cand.dedispersed.shape[1]
-    f_low = int(278/16) # roughly from 1300MHz to 1500MHz, removing junks near the two edges. (in downsampled space)
+    # roughly from 1300MHz to 1500MHz, removing junks near the two edges. (in downsampled space)
+    f_low = int(278/16) 
     f_high = nchans - int(164/16) 
     
     cluster = pd.read_csv("/hdd/data/candidates/T2/cluster_output.csv")
     # snr,if,specnum,mjds,ibox,idm,dm,ibeam,cl,cntc,cntb,trigger
-    this_cand = np.where(np.abs(cluster['mjds']-tab["mjds"].values[0])<30./86400)[0] # candidates nearby within 30s
+    # candidates nearby within 30s
+    this_cand = np.where(np.abs(cluster['mjds']-tab["mjds"].values[0])<30./86400)[0] 
     
-    # seconds after the start of the intermediate .fil
-    t_in_nc = (tab['mjds'].values[0] - cand.tstart) * 86400 
-    # length of .fil file
-    l = cand.dedispersed.shape[0] 
-    if v==True:
-        logging.info(f"Time in .nc = {t_in_nc}.")
-        logging.info(f"Length of timestream = {l}.")
-    
-    if t_in_nc > l*cand.tsamp: # not captured in .fil, pick a random time interval
-        logging.shutdown("Candidate not in the filterbank file. Shutting down.")
-        return 
-    # if in the .nc file
-    else: 
-        mm = int(t_in_nc / cand.tsamp)
-        print('in .nc! mm = ', mm)
-        if (mm<(window_time//2)):
-            window_time = int(2*mm)
-            if v==True:
-                logging.info(f"In the intermediate.fil, near the beginning, index = {mm}")
-        elif ((l-mm)<window_time//2):
-            window_time = (l-mm)
-            if v==True:
-                logging.info(f"In the intermediate.fil, near the end, index = {mm}")
-
-    print('mm, window = ', mm, window_time)
-
-    if window_time<8:
-        print('Too few samples to plot')
-        logging.warning(f"Window size too small! Will still proceed.")
-        return
-
-    if v==True:
-        logging.info(f"in plotting, mm = {mm}, time window = {window_time}")
+    # find the index of the start of the pulse <- center of cand.data
+    mm = int(ntime / 2)
+    # ToA of cand in the time window in seconds
+    t_in_nc = mm * cand.tsamp 
 
     data_timestream = cand.dedispersed.mean(1)
     data_timestream = data_timestream[mm-window_time//2:mm+window_time//2]
@@ -273,6 +217,8 @@ def plot_grex(cand, tab, JSON):
     data_freqtime = (data_freqtime - 
                      np.mean(data_freqtime, axis=0, keepdims=True))
     data_freqtime = data_freqtime.T
+    if v==True:
+        logging.info(f"In plot_grex, index mm = {mm}, data shape = {data_freqtime.shape}.")
 
     # DM time
     data_dmt = cand.dmt[:, mm-window_time//2:mm+window_time//2]
@@ -280,7 +226,7 @@ def plot_grex(cand, tab, JSON):
                 np.mean(data_dmt, axis=1, keepdims=True))
 
     # Construct time array for the window
-    times = np.linspace(0,cand.tsamp*ntime,ntime) * 1e3 # Convert into milliseconds
+    times = np.linspace(0,cand.tsamp*ntime,ntime) * 1e3 # Convert to milliseconds
     times = times[mm-window_time//2:mm+window_time//2]
     tmin, tmax = times[0]-t_in_nc*1000, times[-1]-t_in_nc*1000
     # Construct the downsampled frequency array, after truncating highest and lowest edges
@@ -313,7 +259,7 @@ def plot_grex(cand, tab, JSON):
                interpolation='nearest')
     DM0_delays = tmin + cand.dm * 4.15E6 * (freqmin**-2 - freqs**-2) # zero DM sweep
     plt.plot(DM0_delays, freqs, c='r', lw='2', alpha=0.35)
-    plt.xlabel('Time (ms)+ MJD {}'.format(tab['mjds'].values[0]), fontsize=12)
+    plt.xlabel('Time (ms)+ MJD {}'.format(cand.tstart+(mm*cand.tsamp)/86400), fontsize=12)
     plt.ylabel('Frequency (MHz)', fontsize=12)
     plt.xlim(tmin, tmax)
 
@@ -323,7 +269,7 @@ def plot_grex(cand, tab, JSON):
                aspect='auto', 
                interpolation='nearest',
                extent=(times.min()-t_in_nc*1000, times.max()-t_in_nc*1000, 0, 2*cand.dm))
-    plt.xlabel('Time (ms)+ MJD {}'.format(tab['mjds'].values[0]), fontsize=12)
+    plt.xlabel('Time (ms)+ MJD {}'.format(cand.tstart+(mm*cand.tsamp)/86400), fontsize=12)
     plt.ylabel(r'DM ($pc\cdot cm^{-3}$)', fontsize=12)
     
     # DM vs. MJD in cluster_output.csv
@@ -363,15 +309,15 @@ def plot_grex(cand, tab, JSON):
 
     return()
 
-### To run cand_plotter.py independently.
+### To run cand_plotter.py independently, uncomment this.
 if __name__ == '__main__':
-    c = js.split('.')[0] # candidate name 
-    v = "/hdd/data/voltages/grex_dump-"+c+".nc" # voltage file
-    fn_tempfil = "/hdd/data/candidates/T3/candplots/intermediate.fil" # output temporary .fil
-    fn_outfil = f"/hdd/data/candidates/T3/cand{c}.fil" # output dedispersed candidate .fil
-    (cand, tab) = gen_cand(v, fn_tempfil, fn_outfil, c+'.json')
+    candname = js.split('.')[0] # candidate name 
+    vol_fn = "/hdd/data/voltages/grex_dump-"+candname+".nc" # corresponding voltage netcdf file
+    fn_tempfil = "/hdd/data/candidates/T3/candplots/intermediate.fil" # output temporary filterbank file, removed afterwards
+    fn_outfil = f"/hdd/data/candidates/T3/cand{candname}.fil" # output dedispersed candidate filterbank file 
 
-    plot_grex(cand, tab, c+".json") 
+    (cand, tab) = gen_cand(vol_fn, fn_tempfil, fn_outfil, candname+'.json')
+    plot_grex(cand, tab, candname+".json") 
 
     cmd = "rm {}".format(fn_tempfil)
     print(cmd)
