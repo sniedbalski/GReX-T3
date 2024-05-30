@@ -11,8 +11,6 @@ import time
 import logging
 import cand_plotter
 
-
-
 logfile = '/home/user/zghuai/GReX-T3/services/T3_plotter.log'
 env_dir = "/home/user/zghuai/GReX-T3/grex_t3/" 
 mon_dir = "/hdd/data/voltages/" # monitoring dir

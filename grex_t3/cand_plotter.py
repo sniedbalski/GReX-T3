@@ -30,8 +30,7 @@ logging.basicConfig(filename=logfile,
 logging.info('Starting cand_plotter.py!')
 
 ### To run cand_plotter.py independently, uncomment this line.
-# js = str(sys.argv[1]) # full .json filename
-
+js = str(sys.argv[1]) # full .json filename
 
 def get_cand(JSON):
     """
@@ -98,6 +97,7 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
     # write the dispersed pulse to a temporary .fil file
     # do not save intermediate file 
     ct.write_sigproc(fn_tempfil, cand_disp, t_start=T0+(mm-window_width//2)*dt/86400) 
+
     if v==True:
         logging.info(f"Done writing to a temporary .fil file.")
         print(f"Done writing to a temporary .fil file.")
@@ -129,6 +129,11 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
         print(f"Writing out to .fil file, cand index mm = {mm}, cand.data shape = {cand.data.shape}.")
     # select a smaller time window for the dedispersed pulse
     data_freqtime = cand.dedispersed[mm-window_time//2:mm+window_time//2, :] 
+
+    print("Testing the .h5 writer")
+    cand.dedispersed = data_freqtime
+    cand.dmt = cand.dmt[:, mm-window_time//2:mm+window_time//2]
+    cand.save_h5(dir_fil, JSON.split('.')[0] + '.h5'
 
     # write to .fil
     nchans = cand.nchans
@@ -325,16 +330,16 @@ def plot_grex(cand, tab, JSON, v=False):
     return()
 
 ### To run cand_plotter.py independently, uncomment this.
-# if __name__ == '__main__':
-#     candname = js.split('.')[0] # candidate name 
-#     vol_fn = dir_mon + "grex_dump-"+candname+".nc" # corresponding voltage netcdf file
-#     fn_tempfil = dir_plot + "intermediate.fil" # output temporary filterbank file, removed afterwards
-#     fn_outfil = dir_fil + f"cand{candname}.fil" # output dedispersed candidate filterbank file 
+if __name__ == '__main__':
+    candname = js.split('.')[0] # candidate name 
+    vol_fn = dir_mon + "grex_dump-"+candname+".nc" # corresponding voltage netcdf file
+    fn_tempfil = dir_plot + "intermediate.fil" # output temporary filterbank file, removed afterwards
+    fn_outfil = dir_fil + f"cand{candname}.fil" # output dedispersed candidate filterbank file 
 
-#     (cand, tab) = gen_cand(vol_fn, fn_tempfil, fn_outfil, candname+'.json')
-#     plot_grex(cand, tab, candname+".json") 
+    (cand, tab) = gen_cand(vol_fn, fn_tempfil, fn_outfil, candname+'.json')
+    plot_grex(cand, tab, candname+".json") 
 
-#     cmd = "rm {}".format(fn_tempfil)
-#     print(cmd)
-#     os.system(cmd)
+    cmd = "rm {}".format(fn_tempfil)
+    print(cmd)
+    os.system(cmd)
 
