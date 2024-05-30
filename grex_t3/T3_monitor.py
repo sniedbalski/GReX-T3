@@ -1,6 +1,6 @@
-### 03/25/2024
+### 05/28/2024
 ### Using Inotify to monitor /hdd/data/voltages/
-### when a new .nc file is created, it calls the T3 plotting task, saves a pdf file, and pushes to the Slack candidates channel.
+### when a new .nc file is created, it calls the T3 plotting task, saves a png/pdf file, and posts it to the Slack candidates channel.
 ### Usage: poetry run python T3_monitor.py
 
 import inotify.adapters as ia
@@ -12,14 +12,12 @@ import logging
 import cand_plotter
 
 
-# poetry_project_dir = os.environ.get('POETRY_PROJECT_DIR')
-# if poetry_project_dir is None:
-#     print("Error: POETRY_PROJECT_DIR environment variable is not set.")
-#     sys.exit(1)
 
 logfile = '/home/user/zghuai/GReX-T3/services/T3_plotter.log'
 env_dir = "/home/user/zghuai/GReX-T3/grex_t3/" 
 mon_dir = "/hdd/data/voltages/" # monitoring dir
+dir_plot = "/hdd/data/candidates/T3/candplots/" # place to save output plots
+dir_fil  = "/hdd/data/candidates/T3/candfils/"  # place to save output filterbank files
 
 # Configure the logger
 logging.basicConfig(filename=logfile,
@@ -125,19 +123,19 @@ def main(path, post=True):
                 if filename.endswith('.nc'): # created a new .nc file
                     logging.info(f"New NetCDF file created, waiting to plot.")
                     print('Created {}'.format(filename))
+
                     ### T3 goes here. 
                     c = filename.split('.')[0].split('/')[-1].split('-')[-1] # candidate ID
                     filename_json = c+".json"
                     print('filename = ', filename_json)
 
                     os.chdir(env_dir)
-
-                    time.sleep(80)
+                    time.sleep(10)
 
                     try: 
-                        v = "/hdd/data/voltages/grex_dump-"+c+".nc" # voltage file
-                        fn_tempfil = "/hdd/data/candidates/T3/candplots/intermediate.fil" # output temporary .fil
-                        fn_outfil = f"/hdd/data/candidates/T3/candfils/cand{c}.fil" # output dedispersed candidate .fil
+                        v = mon_dir + "grex_dump-"+c+".nc" # voltage file
+                        fn_tempfil = dir_plot + "intermediate.fil" # output temporary .fil
+                        fn_outfil = dir_fil + "cand{}.fil".format(c) # output dedispersed candidate .fil
                         (cand, tab) = cand_plotter.gen_cand(v, fn_tempfil, fn_outfil, c+'.json')
 
                         cand_plotter.plot_grex(cand, tab, c+".json") 
@@ -150,24 +148,8 @@ def main(path, post=True):
                     except Exception as e:
                         logging.error("Error plotting candidates: %s", str(e))
 
-                    # cmd = "poetry run python cand_plotter.py {}".format(filename_json)
-                    # print(cmd)
-                    # try:
-                    #     os.system(cmd)
-                    #     logging.info(f"Candidate plot grex_cand{filename_json.split('.')[0]}.pdf successfully created!")
-                    # except Exception as e:
-                    #     logging.error("Error plotting candidates using cand_plotter.py : %s", str(e))
-
-
-                    pdffile = "/hdd/data/candidates/T3/candplots/grex_cand"+filename_json.split('.')[0]+".png"
+                    pdffile = dir_plot + "grex_cand"+filename_json.split('.')[0]+".png"
                     print("saved in ", pdffile)
-
-                    # test with json
-                    # pdffile = "/home/user/zghuai/T3_monitor/grex_cand"+filename.split('.')[0]+".pdf"
-                    # command = "python inotify_testplot.py {}".format(filename)
-                    # # Execute the command using os.system()
-                    # print(command)
-                    # os.system(command)
 
                     if post==True:
                         try:
@@ -177,9 +159,7 @@ def main(path, post=True):
                             logging.error("Error uploading candidate plot to Slack: %s", str(e))
                         logging.info("DONE")
 
-                    # test; construct the output pdf filename here
-                    # send_to_slack("Hello World! filename={}".format(pdffile))
-
+                    del cand
 
     except PermissionError:
         logging.error("Permission denied: Unable to create inotify test file.")
