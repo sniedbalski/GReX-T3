@@ -227,9 +227,6 @@ def plot_grex(cand, tab, JSON, v=False):
     # ToA of cand in the time window in seconds
     t_in_nc = mm * cand.tsamp 
 
-    data_timestream = cand.dedispersed.mean(1)
-    data_timestream = data_timestream[mm-window_time//2:mm+window_time//2]
-
     # Dedispersed pulse, remove channel mean
     data_freqtime = cand.dedispersed[mm-window_time//2:mm+window_time//2, f_low:f_high].copy() # roughly from 1300MHz to 1500MHz
     data_freqtime = (data_freqtime - 
@@ -238,11 +235,17 @@ def plot_grex(cand, tab, JSON, v=False):
     if v==True:
         logging.info(f"In plot_grex, index mm = {mm}, data shape = {data_freqtime.shape}.")
 
+    max_pulse = np.argmax(data_freqtime.mean(0))
+    data_freqtime = np.roll(data_freqtime, int(len(data_freqtime[0])//2-max_pulse), axis=1)
+    data_timestream = data_freqtime.mean(0)
+        
     # DM time
     data_dmt = cand.dmt[:, mm-window_time//2:mm+window_time//2].copy()
     data_dmt = (data_dmt - 
                 np.mean(data_dmt, axis=1, keepdims=True))
 
+    data_dmt = np.roll(data_dmt, int(len(data_dmt[0])//2-max_pulse), axis=1)
+    
     # Construct time array for the window
     times = np.linspace(0,cand.tsamp*ntime,ntime) * 1e3 # Convert to milliseconds
     times = times[mm-window_time//2:mm+window_time//2]
@@ -289,6 +292,8 @@ def plot_grex(cand, tab, JSON, v=False):
                extent=(times.min()-t_in_nc*1000, times.max()-t_in_nc*1000, 0, 2*cand.dm))
     plt.xlabel('Time (ms)+ MJD {}'.format(cand.tstart+(mm*cand.tsamp)/86400), fontsize=12)
     plt.ylabel(r'DM ($pc\cdot cm^{-3}$)', fontsize=12)
+    plt.ylim(cand.dm-50, cand.dm + 50)
+    plt.xlim(tmin, tmax)    
     
     # DM vs. MJD in cluster_output.csv
     plt.subplot(grid[7:9, 0:6])
