@@ -1,5 +1,5 @@
 # Simple script to simulate FRBs with a given DM and fluence
-
+import argparse
 import numpy as np
 import simulate_frb 
 
@@ -9,7 +9,12 @@ def create_simulated_frbs(dm, fluence=40.,
     dt = 8.192e-6
 
     ntime, nfreq = 4*16384, 2048
-
+    freq_hi, freq_low = 1530., 1280.
+    
+    disp_delay = 4148 * dm * (freq_hi**-2 - freq_low**-2)
+    ntime = max(16384, int(abs(1.5 * disp_delay / dt)))
+    print("Assuming %d samples" % ntime)
+    
     data, params = simulate_frb.gen_simulated_frb(NFREQ=nfreq,
         NTIME=ntime,
         sim=True,
@@ -20,8 +25,8 @@ def create_simulated_frbs(dm, fluence=40.,
         background_noise=np.zeros([nfreq, ntime]),
         delta_t=dt,
         plot_burst=False,
-        freq=(1530.0, 1280.0),
-        FREQ_REF=1530.0,
+        freq=(freq_hi, freq_low),
+        FREQ_REF=freq_hi,
         scintillate=False,
         scat_tau_ref=0.0,
         disp_ind=2.0,
@@ -35,9 +40,18 @@ def create_simulated_frbs(dm, fluence=40.,
         byte_data = data.astype(np.int8)
         f.write(np.ravel(byte_data,'F').tobytes())
 
-if __name__=='__main__':
-    dm_list = np.linspace(15., 200, 5)
-    
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Simulate FRBs with given DM and fluence")
+    parser.add_argument('--dm_start', type=float, default=25, help='Starting DM value')
+    parser.add_argument('--dm_end', type=float, default=1000, help='Ending DM value')
+    parser.add_argument('--nfrb', type=int, default=10, help='Number of DM steps')
+    parser.add_argument('--fluence', type=float, default=40.0, help='Fluence of the FRB')
+    parser.add_argument('--width_sec', type=float, default=64e-6, help='Width of the FRB pulse in seconds')
+
+    args = parser.parse_args()
+
+    dm_list = np.linspace(args.dm_start, args.dm_end, args.nfrb)
+
     for dm in dm_list:
-        create_simulated_frbs(dm) 
+        create_simulated_frbs(dm, fluence=args.fluence, width_sec=args.width_sec)
         print("Created DM={}".format(dm))
