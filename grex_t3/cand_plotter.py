@@ -22,7 +22,7 @@ dir_mon  = "/hdd/data/voltages/"
 dir_plot = "/hdd/data/candidates/T3/candplots/"
 dir_fil  = "/hdd/data/candidates/T3/candfils/"
 cluster_output = "/hdd/data/candidates/T2/cluster_output.csv"
-logfile = '/home/user/zghuai/GReX-T3/services/T3_plotter.log'
+logfile = '/home/user/grex/t3/GReX-T3/services/T3_plotter.log'
 logging.basicConfig(filename=logfile,
                     level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -256,7 +256,7 @@ def plot_grex(cand, tab, JSON, v=False):
 
     # Calculate std of the given window.
     snr_tools = at.SNR_Tools()
-    stds = snr_tools.calc_snr_presto(data_timestream, verbose=True)[1]
+    snr_t3, stds = snr_tools.calc_snr_presto(data_timestream, verbose=True)
     
     # Plot
     logging.info("Starting to plot!")
@@ -319,7 +319,7 @@ def plot_grex(cand, tab, JSON, v=False):
              fontsize = 12,fontweight='semibold')
     fig.text(0.1, 0.86, 'Arriving time = MJD {}'.format(tab['mjds'].values[0]),
              fontsize = 12,fontweight='semibold')
-    fig.text(0.1, 0.845, 'SNR = {}'.format(tab['snr'].values[0]),
+    fig.text(0.1, 0.845, 'SNR Heimdall = {} SNR T3 = {}'.format(tab['snr'].values[0], snr_t3),
              fontsize = 12,fontweight='semibold')
     fig.text(0.1,0.83, 'Filename:'+JSON,
              fontsize = 12,fontweight='semibold')

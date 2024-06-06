@@ -12,7 +12,7 @@ def create_simulated_frbs(dm, fluence=40.,
     freq_hi, freq_low = 1530., 1280.
     
     disp_delay = 4148 * dm * (freq_hi**-2 - freq_low**-2)
-    ntime = max(16384, int(abs(1.5 * disp_delay / dt)))
+    ntime = int(4 * 16384)#max(16384, int(abs(1.5 * disp_delay / dt)))
     print("Assuming %d samples" % ntime)
     
     data, params = simulate_frb.gen_simulated_frb(NFREQ=nfreq,
