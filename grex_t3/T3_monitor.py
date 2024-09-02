@@ -52,7 +52,7 @@ def upload_to_slack(pdffile):
     try:
         # Upload the plot file to Slack
         response = client.files_upload(
-            channels="candidates",
+            channels="candidates-ovro",
             file=pdffile,
             initial_comment=message
         )
