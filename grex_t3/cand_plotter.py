@@ -35,7 +35,7 @@ logging.info('Starting cand_plotter.py!')
 def get_cand(JSON):
     """
     Reads the input json file
-    Returns a table containing ('mjds' 'snr' 'ibox' 'dm' 'ibeam' 'cntb' 'cntc' 'specnum')
+    Returns a table containing ('mjds' 'snr' 'ibox' 'dm' 'ibeam' 'cntb' 'cntc' 'specnum', 'isinjection')
     """
     try:
         f = open('/hdd/data/candidates/T2/'+JSON)
@@ -191,7 +191,7 @@ def gen_cand(fn_vol, fn_tempfil, fn_filout, JSON, v=False): # tab - json file
 
 
 
-def plot_grex(cand, tab, JSON, v=False): 
+def plot_grex(cand, tab, JSON, v=False, classify_ml=False): 
 
     """
     Plots:
@@ -203,9 +203,12 @@ def plot_grex(cand, tab, JSON, v=False):
     cand = downsampled, dedispersed candidate object, the first output from gen_cand() function
     tab = candidate .json table from gen_cand()
     JSON = .json filename
+    classify_ml = Boolean determines whether or not data are classified by ML model
     ----------
     Returns None
     """
+
+    isinjection = tab['isinjection'].values[0]
 
     # number of samples in the downsampled window
     window_time = 1024
@@ -257,11 +260,24 @@ def plot_grex(cand, tab, JSON, v=False):
     # Calculate std of the given window.
     snr_tools = at.SNR_Tools()
     snr_t3, stds = snr_tools.calc_snr_presto(data_timestream, verbose=True)
+
+    if classify_ml:
+        probability_real = model(data_freqtime)
     
     # Plot
     logging.info("Starting to plot!")
     fig = plt.figure(figsize=(10,15))
     grid = plt.GridSpec(9, 6)
+
+    # Background color is lightcoral if it's an injection
+    if isinjection:
+        fig.patch.set_facecolor('lightcoral')  
+        for ax in fig.get_axes():
+            ax.set_facecolor('lightcoral') 
+    else:
+        fig.patch.set_facecolor('white')  
+        for ax in fig.get_axes():
+            ax.set_facecolor('white')
 
     # first row, collapse frequency -> time stream
     plt.subplot(grid[0, :6])
