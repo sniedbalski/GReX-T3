@@ -11,11 +11,20 @@ import time
 import logging
 import cand_plotter
 
-logfile = '/home/user/zghuai/GReX-T3/services/T3_plotter.log'
-env_dir = "/home/user/zghuai/GReX-T3/grex_t3/" 
-mon_dir = "/hdd/data/voltages/" # monitoring dir
-dir_plot = "/hdd/data/candidates/T3/candplots/" # place to save output plots
-dir_fil  = "/hdd/data/candidates/T3/candfils/"  # place to save output filterbank files
+logfile = '/home/user/grex/t3/GReX-T3/services/T3_plotter.log'
+env_dir = "/home/user/grex/t3/GReX-T3/grex_t3/"
+mon_dir = "/hdd/data/voltages/" # monitoring dir                                                 
+dir_plot = "/hdd/data/candidates/T3/candplots/" # place to save output plots                     
+dir_fil  = "/hdd/data/candidates/T3/candfils/"
+
+# MAKE SURE TO CHANGE TO YOUR PREFERRED CHANNEL FOR NEW STATIONS!
+slack_channel_name = "candidates-harvard"
+
+# Create directories if they don't exist
+for directory in [mon_dir, dir_plot, dir_fil]:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        logging.info(f"Created directory: {directory}")
 
 # Configure the logger
 logging.basicConfig(filename=logfile,
@@ -52,7 +61,7 @@ def upload_to_slack(pdffile):
     try:
         # Upload the plot file to Slack
         response = client.files_upload(
-            channels="candidates-ovro",
+            channels=slack_channel_name,
             file=pdffile,
             initial_comment=message
         )
@@ -95,75 +104,75 @@ def send_to_slack(message):
         print(f"Error uploading plot to Slack: {err}")
 
 
+def process_candidate(filename, c):
+    """Process a single candidate file and return the plot path"""
+    v = mon_dir + f"grex_dump-{c}.nc"
+    fn_tempfil = dir_plot + "intermediate.fil"
+    fn_outfil = dir_fil + f"cand{c}.fil"
+    
+    # Generate and plot candidate
+    cand, tab = cand_plotter.gen_cand(v, fn_tempfil, fn_outfil, f'{c}.json')
+    cand_plotter.plot_grex(cand, tab, f"{c}.json")
+    logging.info("Done with cand_plotter.py")
+    
+    # Cleanup temporary file
+    os.remove(fn_tempfil)
+    logging.info("Successfully plotted the candidate!")
+    
+    return dir_plot + f"grex_cand{c}.png"
 
 def main(path, post=True):
-
-    # initiate an inotify instance
+    print('Starting the monitoring and T3-plotting service')
+    #try:
+    # Initialize monitoring
     i = ia.Inotify()
-    # add the directory to monitor to the instance
     i.add_watch(path)
+    
+    # Create monitor start marker
+    monitor_file = path + 'start_inotify_monitor'
+    with open(monitor_file, 'w') as f:
+        pass
+    
+    # Main monitoring loop
+    for event in i.event_gen(yield_nones=False):
+        _, type_names, path, filename = event
+        
+        print('event:', event)
 
-    try:
-        # create a test file, as a marker for the start of the monitoring process
-        with open(path+'start_inotify_monitor', 'w'): 
-            pass
-        # loop and monitor the directory
-        for event in i.event_gen(yield_nones=False):
-            (_, type_names, path, filename) = event
-
-            # print("PATH=[{}] FILENAME=[{}] EVENT_TYPES={}".format(
-            #     path, filename, type_names))
-            # print(filename)
+        # Demand that the event is a file creation event, not just altered.
+        if type_names != ['IN_CREATE'] or not filename.endswith('.nc'):
+            continue
             
-            # if new file is created
-            if type_names == ['IN_CREATE']:
-                # if the filename ends with .nc
-                if filename.endswith('.nc'): # created a new .nc file
-                    logging.info(f"New NetCDF file created, waiting to plot.")
-                    print('Created {}'.format(filename))
-
-                    ### T3 goes here. 
-                    c = filename.split('.')[0].split('/')[-1].split('-')[-1] # candidate ID
-                    filename_json = c+".json"
-                    print('filename = ', filename_json)
-
-                    os.chdir(env_dir)
-                    time.sleep(10)
-
-                    try: 
-                        v = mon_dir + "grex_dump-"+c+".nc" # voltage file
-                        fn_tempfil = dir_plot + "intermediate.fil" # output temporary .fil
-                        fn_outfil = dir_fil + "cand{}.fil".format(c) # output dedispersed candidate .fil
-                        (cand, tab) = cand_plotter.gen_cand(v, fn_tempfil, fn_outfil, c+'.json')
-
-                        cand_plotter.plot_grex(cand, tab, c+".json") 
-                        logging.info("Done with cand_plotter.py")
-
-                        cmd = "rm {}".format(fn_tempfil)
-                        print(cmd)
-                        os.system(cmd)
-                        logging.info("Successfully plotted the canidate!")
-                    except Exception as e:
-                        logging.error("Error plotting candidates: %s", str(e))
-
-                    pdffile = dir_plot + "grex_cand"+filename_json.split('.')[0]+".png"
-                    print("saved in ", pdffile)
-
-                    if post==True:
-                        try:
-                            upload_to_slack(pdffile) # upload to Slack #candidates channel
-                            logging.info(f"Successfully posted to Slack #candidates!")
-                        except Exception as e:
-                            logging.error("Error uploading candidate plot to Slack: %s", str(e))
-                        logging.info("DONE")
-
-                    del cand
-
-    except PermissionError:
-        logging.error("Permission denied: Unable to create inotify test file.")
-
-    except Exception as e:
-        logging.error("An error occurred: %s", str(e))
+        logging.info(f"New NetCDF file created: {filename}")
+        
+        # Extract candidate ID and prepare
+        c = filename.split('.')[0].split('/')[-1].split('-')[-1]
+        os.chdir(env_dir)
+        print('Sleeping for 10 seconds')
+        time.sleep(10)  # Wait for file to be fully written
+        
+        try:
+            # Process candidate and get plot path
+            plot_path = process_candidate(filename, c)
+            print('plot_path:', plot_path)
+            # Post to Slack if requested
+            if post:
+                upload_to_slack(plot_path)
+                logging.info("Successfully posted to Slack #candidates!")
+            
+        except FileNotFoundError as e:
+            logging.error(f"Required file not found: {str(e)}")
+        except cand_plotter.PlottingError as e:  # Assuming you have custom exceptions
+            logging.error(f"Error in candidate plotting: {str(e)}")
+        except slk.errors.SlackApiError as e:
+            logging.error(f"Slack API error: {str(e)}")
+        except Exception as e:
+            logging.error(f"Unexpected error processing candidate {c}: {str(e)}")
+                
+    # except PermissionError:
+    #     logging.error("Permission denied: Unable to create inotify test file.")
+    # except Exception as e:
+    #     logging.error(f"Fatal error in monitoring: {str(e)}")
 
 
 if __name__ == '__main__':
