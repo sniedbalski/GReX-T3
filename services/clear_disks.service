@@ -3,11 +3,11 @@ Description=Clear Voltage Data
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/user/connor/GReX-T3/services/run_clear_disks.py
+ExecStart=/usr/bin/python3 /home/cugrex/grex/t3/services/run_clear_disks.py
 Environment="GREX_VOLTAGE_DIR"=/hdd/data/voltages
 Restart=always
-User=user
-Group=user
+User=cugrex
+Group=cugrex
 
 [Install]
 WantedBy=multi-user.target

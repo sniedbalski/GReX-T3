@@ -4,7 +4,7 @@ import numpy as np
 import numpy.ma as ma
 import pandas as pd
 
-import analysis_tools
+import grex_t3.analysis_tools as analysis_tools
 
 class RFI:
     """
