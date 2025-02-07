@@ -2,7 +2,7 @@
 ### Using Inotify to monitor /hdd/data/voltages/
 ### when a new .nc file is created, it calls the T3 plotting task, saves a png/pdf file, and posts it to the Slack candidates channel.
 ### Usage: poetry run python T3_monitor.py
-
+#test alyssa
 import inotify.adapters as ia
 import os
 import sys
