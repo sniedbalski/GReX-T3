@@ -9,13 +9,13 @@ import sys
 import slack_sdk as slk
 import time
 import logging
-import cand_plotter
+import cand_plotter_cornell as cand_plotter
 
 logfile = '/home/cugrex/grex/t3/services/T3_plotter.log'
 env_dir = "/home/cugrex/grex/t3/grex_t3/" 
 mon_dir = "/hdd/data/voltages/" # monitoring dir
+can_dir = "/hdd/data/candidates/" # candidate dir
 dir_plot = "/hdd/data/candidates/T3/candplots/" # place to save output plots
-dir_fil  = "/hdd/data/candidates/T3/candfils/"  # place to save output filterbank files
 
 # Configure the logger
 logging.basicConfig(filename=logfile,
@@ -101,7 +101,27 @@ def send_to_slack(message):
         raise 
 '''
 
-def main(path, post=True, test=False):
+def testing(filename = 'grex_dump-250212aaaz.nc'):
+    if filename.endswith('.nc'): # created a new .nc file
+        logging.info(f"New NetCDF file {filename}, waiting to plot.")
+        #print('Created {}'.format(filename))
+
+        ### T3 goes here. 
+        cand_id = filename.split('.')[0].split('/')[-1].split('-')[-1] # candidate ID
+        filepath_json = can_dir+'T2/'+cand_id+'.json'
+        #print('filename = ', filename_json)
+
+        os.chdir(env_dir)
+        time.sleep(10)
+
+        try: 
+            filepath_voltage = mon_dir + "grex_dump-"+cand_id+".nc"
+
+            cand_plotter.Process(json_file=filepath_json, voltage_file=filepath_voltage)
+        except Exception as e:
+            logging.error("Error plotting candidates: %s", str(e))
+
+def main(path, post=True):
 
     # initiate an inotify instance
     i = ia.Inotify()
@@ -128,40 +148,44 @@ def main(path, post=True, test=False):
                     #print('Created {}'.format(filename))
 
                     ### T3 goes here. 
-                    c = filename.split('.')[0].split('/')[-1].split('-')[-1] # candidate ID
-                    filename_json = c+".json"
+                    cand_id = filename.split('.')[0].split('/')[-1].split('-')[-1] # candidate ID
+                    filepath_json = can_dir+'/T2/'+cand_id+".json"
                     #print('filename = ', filename_json)
 
                     os.chdir(env_dir)
                     time.sleep(10)
 
                     try: 
+                        filepath_voltage = mon_dir + "grex_dump-"+cand_id+".nc"
+
+                        cand_plotter.Process(json_file=filepath_json, voltage_file=filepath_voltage)
+                        
+                        '''
                         v = mon_dir + "grex_dump-"+c+".nc" # voltage file
                         fn_tempfil = dir_plot + "intermediate.fil" # output temporary .fil
                         fn_outfil = dir_fil + "cand{}.fil".format(c) # output dedispersed candidate .fil
+
                         (cand, tab) = cand_plotter.gen_cand(v, fn_tempfil, fn_outfil, c+'.json')
-                        if test==True:
-                            logging.info("Running test, no plots made")
-                        else:
-                            cand_plotter.plot_grex(cand, tab, c+".json") 
-                            logging.info("Done with cand_plotter.py")
+                        cand_plotter.plot_grex(cand, tab, c+".json") 
+                        logging.info("Done with cand_plotter.py")
 
-                            cmd = "rm {}".format(fn_tempfil)
-                            print(cmd)
-                            os.system(cmd)
-                            logging.info("Successfully plotted the canidate!")
+                        cmd = "rm {}".format(fn_tempfil)
+                        print(cmd)
+                        os.system(cmd)
+                        logging.info("Successfully plotted the canidate!")
 
-                            pdffile = dir_plot + "grex_cand"+filename_json.split('.')[0]+".png"
+                        pdffile = dir_plot + "grex_cand"+filename_json.split('.')[0]+".png"
 
-                            if post==True:
-                                try:
-                                    upload_to_slack(pdffile) # upload to Slack #candidates channel
-                                    logging.info(f"Successfully posted to Slack #candidates!")
-                                except Exception as e:
-                                    logging.error("Error uploading candidate plot to Slack: %s", str(e))
-                                logging.info("DONE")
+                        if post==True:
+                            try:
+                                upload_to_slack(pdffile) # upload to Slack #candidates channel
+                                logging.info(f"Successfully posted to Slack #candidates!")
+                            except Exception as e:
+                                logging.error("Error uploading candidate plot to Slack: %s", str(e))
+                            logging.info("DONE")
 
-                            del cand
+                        del cand
+                        '''
                     except Exception as e:
                         logging.error("Error plotting candidates: %s", str(e))
 
@@ -175,8 +199,8 @@ def main(path, post=True, test=False):
 if __name__ == '__main__':
     try:
         post = False
-        test = True
-        main(mon_dir, post=post, test=test)
+        testing()
+        #main(path=mon_dir, post=post)
     except Exception as e:
         print('Interrupted')
         logging.error("Interrupted: %s", str(e))

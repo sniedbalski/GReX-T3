@@ -8,8 +8,7 @@ import json
 from fdmt import transform
 
 class Read_Files:
-    def __init__(self,path,json_file,voltage_file):
-        self.path = path
+    def __init__(self,json_file,voltage_file):
         self.json_file = json_file
         self.voltage_file = voltage_file
         
@@ -29,9 +28,9 @@ class Read_Files:
         Returns a table containing ('mjds' 'snr' 'ibox' 'dm' 'ibeam' 'cntb' 'cntc' 'specnum')
         """
         try:
-            with open(self.path+self.json_file) as f:
+            with open(self.json_file) as f:
                 data = json.load(f)
-                self.candidate_data = pd.json_normalize(data[self.json_file.split(".")[0]], meta=['id'])
+                self.candidate_data = pd.json_normalize(data[self.json_file.split("/")[-1].split(".")[0]], meta=['id'])
             #return tab
         
         except Exception as e:
@@ -42,7 +41,7 @@ class Read_Files:
     def read_voltage_data(self, nbit='uint32'):
         """Read the voltage data and return as a flattened dynamic spectrum."""
 
-        ds = xarray.open_dataset(self.path + self.voltage_file, chunks={"time": 2048})
+        ds = xarray.open_dataset(self.voltage_file, chunks={"time": 2048})
 
         # Create complex numbers from Re/Im
         voltages = ds["voltages"].sel(reim="real") + ds["voltages"].sel(reim="imaginary") * 1j
@@ -75,7 +74,7 @@ class Read_Files:
 
     def flatten(self, q=False):
         """Flatten the downsampled Stokes I spectrum."""
-        if self.stokesi is None:
+        if self.stokesI is None:
             raise ValueError("Stokes I data is not loaded. Run read_voltage_data first.")
         
         if q:
@@ -99,7 +98,7 @@ class Read_Files:
 class Process:
     def __init__(self, **kwargs):
         
-        old_dynamic_spectrum, start_mjd, candidate_data, dt = Read_Files(kwargs).output()
+        old_dynamic_spectrum, start_mjd, candidate_data, dt = Read_Files(**kwargs).output()
 
         ind_maxsnr = candidate_data["snr"].argmax()
         dm_0 = candidate_data['dm'][ind_maxsnr]
