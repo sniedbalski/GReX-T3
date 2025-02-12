@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import xarray
+import xarray as xr
 import json
 
 from fdmt import transform
@@ -41,7 +41,7 @@ class Read_Files:
     def read_voltage_data(self, nbit='uint32'):
         """Read the voltage data and return as a flattened dynamic spectrum."""
 
-        ds = xarray.open_dataset(self.voltage_file, chunks={"time": 2048})
+        ds = xr.open_dataset(self.voltage_file, chunks={"time": 2048})
 
         # Create complex numbers from Re/Im
         voltages = ds["voltages"].sel(reim="real") + ds["voltages"].sel(reim="imaginary") * 1j
@@ -52,9 +52,9 @@ class Read_Files:
         stokesi = stokesi.compute()
 
         self.dt = 8.192e-6
-        SI = xarray.DataArray(data=stokesi.data, dims=['time', 'freq'])
+        SI = xr.DataArray(data=stokesi.data, dims=['time', 'freq'])
         self.start_mjd = stokesi.time.values.min()
-        self.stokesI = SI.assign_coords(time= xarray.DataArray((stokesi.time.values - self.start_mjd)*86400,dims='time'), freq= stokesi.freq.values)
+        self.stokesI = SI.assign_coords(time= xr.DataArray((stokesi.time.values - self.start_mjd)*86400,dims='time'), freq= stokesi.freq.values)
         
         #return SI_flat, stokesi.time.min().values * timedownsample
 
@@ -82,7 +82,7 @@ class Read_Files:
             self.stokesI = self.stokesI - self.bandpass
         elif q==False:
             self.bandpass = xr.zeros_like(self.stokesI.freq)
-        '''self.dynamic_spectrum = xarray.DataArray(
+        '''self.dynamic_spectrum = xr.DataArray(
             data=SI_flat.data,
             dims=['time', 'freq'],
             coords={
@@ -129,7 +129,7 @@ class Process:
             'dm_max': self.dm_0 + 5
         }
         dm_t_data = transform(self.dynamic_spectrum, **kwargs)
-        dm_t = xarray.DataArray(dm_t_data.data, dims=['dm', 'time'])
+        dm_t = xr.DataArray(dm_t_data.data, dims=['dm', 'time'])
 
         t_opt = dm_t.where(dm_t == dm_t.max(), drop=True).time.values[0]
         dm_opt = dm_t.where(dm_t == dm_t.max(), drop=True).dm.values[0]
@@ -145,16 +145,16 @@ class Process:
             print(f"Error getting optimal DM: {e}. Using Heimdall DM instead.")
             DM = self.dm_0
 
-        dt_vec = xarray.DataArray(
+        dt_vec = xr.DataArray(
             data=DM*K*((self.dynamic_spectrum.freq)**-2 - (self.dynamic_spectrum.freq.max())**-2),
             coords={'freq': self.dynamic_spectrum.freq},
             dims='freq'
         )
-        tran_vec = xarray.DataArray(
+        tran_vec = xr.DataArray(
             data=np.fft.fftfreq(self.dynamic_spectrum.shape[0], 8.192e-6),
             dims='tran'
         )
-        spectrum = xarray.DataArray(
+        spectrum = xr.DataArray(
             data=np.fft.fft(self.dynamic_spectrum.transpose('freq', 'time').values),
             dims=['freq', 'tran'],
             coords={'freq': self.dynamic_spectrum.freq, 'tran': tran_vec}

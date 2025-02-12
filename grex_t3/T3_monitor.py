@@ -149,7 +149,7 @@ def main(path, post=True):
 
                     ### T3 goes here. 
                     cand_id = filename.split('.')[0].split('/')[-1].split('-')[-1] # candidate ID
-                    filepath_json = can_dir+'/T2/'+cand_id+".json"
+                    filepath_json = can_dir+'T2/'+cand_id+".json"
                     #print('filename = ', filename_json)
 
                     os.chdir(env_dir)
@@ -199,8 +199,8 @@ def main(path, post=True):
 if __name__ == '__main__':
     try:
         post = False
-        testing()
-        #main(path=mon_dir, post=post)
+        #testing()
+        main(path=mon_dir, post=post)
     except Exception as e:
         print('Interrupted')
         logging.error("Interrupted: %s", str(e))
