@@ -5,19 +5,23 @@ import pandas as pd
 import xarray
 import json
 
+from fdmt import transform
+
 class Read_Files:
     def __init__(self,path,json_file,voltage_file):
         self.path = path
         self.json_file = json_file
         self.voltage_file = voltage_file
-
-        self.candidate_data = None #get_cand    #NEEDED  #snr, dm, mjds
-        self.dynamic_spectrum = None #read_voltage_data   #NEEDED
-        self.start_mjd = None #read_voltage_data   #?
-        self.dt = None
-
+        
         self.get_cand()
         self.read_voltage_data()
+        self.downsample()
+        self.flatten()
+
+        #self.candidate_data = None #get_cand    #NEEDED  #snr, dm, mjds
+        #self.dynamic_spectrum = None #read_voltage_data   #NEEDED
+        #self.start_mjd = None #read_voltage_data   #?
+        #self.dt = None
 
     def get_cand(self): #Extract .json params
         """
@@ -25,11 +29,9 @@ class Read_Files:
         Returns a table containing ('mjds' 'snr' 'ibox' 'dm' 'ibeam' 'cntb' 'cntc' 'specnum')
         """
         try:
-            f = open(self.path+self.json_file)
-            data = json.load(f)
-            tab = pd.json_normalize(data[self.json_file.split(".")[0]], meta=['id'])
-            f.close()
-            self.candidate_data = tab
+            with open(self.path+self.json_file) as f:
+                data = json.load(f)
+                self.candidate_data = pd.json_normalize(data[self.json_file.split(".")[0]], meta=['id'])
             #return tab
         
         except Exception as e:
@@ -37,7 +39,7 @@ class Read_Files:
             logging.error("Error getting candidate json file: %s", str(e))
             #return None
     
-    def read_voltage_data(self, timedownsample=1, freqdownsample=1, nbit='uint32'):
+    def read_voltage_data(self, nbit='uint32'):
         """Read the voltage data and return as a flattened dynamic spectrum."""
 
         ds = xarray.open_dataset(self.path + self.voltage_file, chunks={"time": 2048})
@@ -50,65 +52,63 @@ class Read_Files:
 
         stokesi = stokesi.compute()
 
-        self.downsample(self,timedownsample,freqdownsample)
-
-        self.dt = 8.192e-6 * timedownsample
+        self.dt = 8.192e-6
         SI = xarray.DataArray(data=stokesi.data, dims=['time', 'freq'])
-        SI = SI.assign_coords(time= xarray.DataArray((stokesi.time.values - stokesi.time.values.min())*86400,dims='time'), freq= stokesi.freq.values)
-        
-        self.flatten(self, SI)
+        self.start_mjd = stokesi.time.values.min()
+        self.stokesI = SI.assign_coords(time= xarray.DataArray((stokesi.time.values - self.start_mjd)*86400,dims='time'), freq= stokesi.freq.values)
         
         #return SI_flat, stokesi.time.min().values * timedownsample
 
     def downsample(self, timedownsample=1, freqdownsample=1):
-        if self.stokesi is None:
+        if self.stokesI is None:
             raise ValueError("Stokes I data is not loaded. Run read_voltage_data first.")
 
-        stokesi = self.stokesi
+        #stokesi = self.stokesi
         if timedownsample != 1:
-            stokesi = stokesi.coarsen(time=timedownsample, boundary='trim').mean()
+            self.stokesI = self.stokesI.coarsen(time=timedownsample, boundary='trim').mean()
         if freqdownsample != 1:
-            stokesi = stokesi.coarsen(freq=freqdownsample, boundary='trim').mean()
+            self.stokesI = self.stokesI.coarsen(freq=freqdownsample, boundary='trim').mean()
         
-        self.stokesi = stokesi
-        self.dt = 8.192e-6 * timedownsample
+        #self.stokesi = stokesi
+        self.dt = self.dt * timedownsample
         print(f"Data downsampled with time={timedownsample}, freq={freqdownsample}")
 
-    def flatten(self):
+    def flatten(self, q=False):
         """Flatten the downsampled Stokes I spectrum."""
         if self.stokesi is None:
             raise ValueError("Stokes I data is not loaded. Run read_voltage_data first.")
         
-        SI_flat = self.stokesi - self.stokesi.rolling(time=int(0.01/self.dt), min_periods=1, center=True).mean()
-        self.dynamic_spectrum = xarray.DataArray(
+        if q:
+            self.bandpass = self.stokesI.rolling(time=int(0.01/self.dt), min_periods=1, center=True).mean()
+            self.stokesI = self.stokesI - self.bandpass
+        elif q==False:
+            self.bandpass = xr.zeros_like(self.stokesI.freq)
+        '''self.dynamic_spectrum = xarray.DataArray(
             data=SI_flat.data,
             dims=['time', 'freq'],
             coords={
                 'time': (SI_flat.time.values - SI_flat.time.values.min()) * 86400,
                 'freq': SI_flat.freq.values
             }
-        )
+        )'''
         print("Data flattened and stored as dynamic spectrum.")
 
     def output(self):
-        return self.dynamic_spectrum, self.start_mjd, self.candidate_data, self.dt
+        return self.stokesI, self.start_mjd, self.candidate_data, self.dt
     
-
-
 class Process:
-    def __init__(self, dynamic_spectrum, start_mjd, candidate_data, dt):
+    def __init__(self, **kwargs):
         
-        old_dynamic_spectrum = dynamic_spectrum
-        start_mjd = start_mjd
+        old_dynamic_spectrum, start_mjd, candidate_data, dt = Read_Files(kwargs).output()
 
-        ind_maxsnr = self.candidate_data["snr"].argmax()
+        ind_maxsnr = candidate_data["snr"].argmax()
         dm_0 = candidate_data['dm'][ind_maxsnr]
         t_0 = candidate_data['mjds'][ind_maxsnr]
         delta_t = 4.15e-3 * dm_0 * (1/(old_dynamic_spectrum.freq.min()/1000)**2 - 1/(old_dynamic_spectrum.freq.max()/1000)**2)
         t_rel = (t_0 - start_mjd) * 86400
 
         sliced_dynamic_spectrum = old_dynamic_spectrum.sel(time=slice(t_rel-delta_t, t_rel+delta_t))
-        self.sliced_dynamic_spectrum = sliced_dynamic_spectrum
+        self.dynamic_spectrum = sliced_dynamic_spectrum
         self.dt = dt
         self.dm_0 = dm_0
         
@@ -123,8 +123,8 @@ class Process:
         """Find optimal DM and time for the candidate data."""
 
         kwargs = {
-            'fch1': self.sliced_dynamic_spectrum.freq.max(), 
-            'fchn': self.sliced_dynamic_spectrum.freq.min(),
+            'fch1': self.dynamic_spectrum.freq.max(), 
+            'fchn': self.dynamic_spectrum.freq.min(),
             'tsamp': self.dt,
             'dm_min': self.dm_0 - 5,
             'dm_max': self.dm_0 + 5
@@ -140,14 +140,19 @@ class Process:
     def dedisperse(self):
         """Dedisperse the dynamic spectrum for a given DM."""
         K = 4148
-        DM = self.dm_opt
+        try:
+            DM = self.dm_opt
+        except Exception as e:
+            print(f"Error getting optimal DM: {e}. Using Heimdall DM instead.")
+            DM = self.dm_0
+
         dt_vec = xarray.DataArray(
-            data=DM*K*((self.sliced_dynamic_spectrum.freq)**-2 - (self.sliced_dynamic_spectrum.freq.max())**-2),
-            coords={'freq': self.sliced_dynamic_spectrum.freq},
+            data=DM*K*((self.dynamic_spectrum.freq)**-2 - (self.dynamic_spectrum.freq.max())**-2),
+            coords={'freq': self.dynamic_spectrum.freq},
             dims='freq'
         )
         tran_vec = xarray.DataArray(
-            data=np.fft.fftfreq(self.sliced_dynamic_spectrum.shape[0], 8.192e-6),
+            data=np.fft.fftfreq(self.dynamic_spectrum.shape[0], 8.192e-6),
             dims='tran'
         )
         spectrum = xarray.DataArray(
@@ -156,4 +161,4 @@ class Process:
             coords={'freq': self.dynamic_spectrum.freq, 'tran': tran_vec}
         )
         phasor = np.exp(-2 * 1j * np.pi * (dt_vec * tran_vec))
-        self.dedispersed_spectrum = self.sliced_dynamic_spectrum.copy(data=np.fft.ifft((spectrum * phasor)).real)
+        self.dedispersed_spectrum = self.dynamic_spectrum.copy(data=np.fft.ifft((spectrum * phasor)).real)
