@@ -154,40 +154,38 @@ def main(path, post=True):
 
                     os.chdir(env_dir)
                     time.sleep(10)
+ 
+                    filepath_voltage = mon_dir + "grex_dump-"+cand_id+".nc"
+                    
+                    #cand_plotter.Read_Files(json_file=filepath_json, voltage_file=filepath_voltage, log_file=logfile)
+                    cand_plotter.Process(json_file=filepath_json, voltage_file=filepath_voltage, logger=logging.getLogger('GReXt3'))
+                    
+                    '''
+                    v = mon_dir + "grex_dump-"+c+".nc" # voltage file
+                    fn_tempfil = dir_plot + "intermediate.fil" # output temporary .fil
+                    fn_outfil = dir_fil + "cand{}.fil".format(c) # output dedispersed candidate .fil
 
-                    try: 
-                        filepath_voltage = mon_dir + "grex_dump-"+cand_id+".nc"
+                    (cand, tab) = cand_plotter.gen_cand(v, fn_tempfil, fn_outfil, c+'.json')
+                    cand_plotter.plot_grex(cand, tab, c+".json") 
+                    logging.info("Done with cand_plotter.py")
 
-                        cand_plotter.Process(json_file=filepath_json, voltage_file=filepath_voltage)
-                        
-                        '''
-                        v = mon_dir + "grex_dump-"+c+".nc" # voltage file
-                        fn_tempfil = dir_plot + "intermediate.fil" # output temporary .fil
-                        fn_outfil = dir_fil + "cand{}.fil".format(c) # output dedispersed candidate .fil
+                    cmd = "rm {}".format(fn_tempfil)
+                    print(cmd)
+                    os.system(cmd)
+                    logging.info("Successfully plotted the canidate!")
 
-                        (cand, tab) = cand_plotter.gen_cand(v, fn_tempfil, fn_outfil, c+'.json')
-                        cand_plotter.plot_grex(cand, tab, c+".json") 
-                        logging.info("Done with cand_plotter.py")
+                    pdffile = dir_plot + "grex_cand"+filename_json.split('.')[0]+".png"
 
-                        cmd = "rm {}".format(fn_tempfil)
-                        print(cmd)
-                        os.system(cmd)
-                        logging.info("Successfully plotted the canidate!")
+                    if post==True:
+                        try:
+                            upload_to_slack(pdffile) # upload to Slack #candidates channel
+                            logging.info(f"Successfully posted to Slack #candidates!")
+                        except Exception as e:
+                            logging.error("Error uploading candidate plot to Slack: %s", str(e))
+                        logging.info("DONE")
 
-                        pdffile = dir_plot + "grex_cand"+filename_json.split('.')[0]+".png"
-
-                        if post==True:
-                            try:
-                                upload_to_slack(pdffile) # upload to Slack #candidates channel
-                                logging.info(f"Successfully posted to Slack #candidates!")
-                            except Exception as e:
-                                logging.error("Error uploading candidate plot to Slack: %s", str(e))
-                            logging.info("DONE")
-
-                        del cand
-                        '''
-                    except Exception as e:
-                        logging.error("Error plotting candidates: %s", str(e))
+                    del cand
+                    '''
 
     except PermissionError:
         logging.error("Permission denied: Unable to create inotify test file.")
