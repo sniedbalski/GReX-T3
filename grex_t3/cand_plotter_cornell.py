@@ -135,6 +135,7 @@ class Process:
 
         self.dedispersed_spectrum = None
 
+        self.find_dm()
         self.dedisperse()
         
     def find_dm(self):
@@ -157,7 +158,6 @@ class Process:
 
         except Exception as e:
             self.logger.error("Unable to compute optimal DM: %s", str(e))
-
 
     def dedisperse(self):
         """Dedisperse the dynamic spectrum for a given DM."""
@@ -189,3 +189,6 @@ class Process:
 
         except Exception as e:
             self.logger.error("Error in performing dedispersion: %s", str(e))
+
+    def output(self):
+        return self.dynamic_spectrum, self.dm_t, self.dm_opt, self.t_opt, self.dedispersed_spectrum
