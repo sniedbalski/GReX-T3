@@ -153,7 +153,7 @@ class Process:
 
             t_opt = dm_t.where(dm_t == dm_t.max(), drop=True).time.values[0]
             dm_opt = dm_t.where(dm_t == dm_t.max(), drop=True).dm.values[0]
-            self.dm_t,self.dm_opt,self.t_opt,self.t_rel = dm_t,dm_opt,t_opt
+            self.dm_t, self.dm_opt, self.t_opt = dm_t, dm_opt, t_opt
             self.logger.info("Optimal DM computed")
 
         except Exception as e:
