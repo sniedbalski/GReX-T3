@@ -110,7 +110,8 @@ class Read_Files:
 class Process:
     def __init__(self, **kwargs):
         self.logger = kwargs['logger']
-        self.logger.info('Processing candidate data.')
+        self.cand_id = kwargs['voltage_file'].split('-')[-1].split('.')[0]
+        self.logger.info('Processing candidate data: %s', self.cand_id)
         
         old_dynamic_spectrum, start_mjd, candidate_data, dt = Read_Files(**kwargs).output()
 
@@ -185,10 +186,13 @@ class Process:
             )
             phasor = np.exp(-2 * 1j * np.pi * (dt_vec * tran_vec))
             self.dedispersed_spectrum = self.dynamic_spectrum.copy(data=np.fft.ifft((spectrum * phasor)).real.T)
-            self.logger.info("Dynamc Spectrum dedispersed succesfully.")
+            self.logger.info("Dynamic Spectrum dedispersed succesfully.")
 
         except Exception as e:
             self.logger.error("Error in performing dedispersion: %s", str(e))
 
+    def save_data(self):
+        outfile = self.cand_id + ".h5"
+
     def output(self):
-        return self.dynamic_spectrum, self.dm_t, self.dm_opt, self.t_opt, self.dedispersed_spectrum
+        return self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.dm_opt, self.t_opt, self.dt
