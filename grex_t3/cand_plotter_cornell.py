@@ -14,6 +14,9 @@ class Read_Files:
 
         self.json_file = json_file
         self.voltage_file = voltage_file
+
+        self.time_downsample = 1
+        self.freq_downsample = 1
         
         self.get_cand()
         self.read_voltage_data()
@@ -58,6 +61,7 @@ class Read_Files:
             stokesi = stokesi.compute()
 
             self.dt = 8.192e-6
+            self.df = 122.070e-3
             SI = xr.DataArray(data=stokesi.data, dims=['time', 'freq'])
             self.start_mjd = stokesi.time.values.min()
             self.stokesI = SI.assign_coords(time= xr.DataArray((stokesi.time.values - self.start_mjd)*86400,dims='time'), freq= stokesi.freq.values)
@@ -80,6 +84,9 @@ class Read_Files:
         #self.stokesi = stokesi
         self.dt = self.dt * timedownsample
         self.logger.info(f"Data downsampled with time={timedownsample}, freq={freqdownsample}")
+
+        self.time_downsample = timedownsample
+        self.freq_downsample = freqdownsample
 
     def flatten(self, q=False):
         try:
@@ -105,7 +112,7 @@ class Read_Files:
             self.logger.error("Error while flattening dynamic spectrum: %s", str(e))
 
     def output(self):
-        return self.stokesI, self.start_mjd, self.candidate_data, self.dt
+        return self.stokesI, self.start_mjd, self.candidate_data, self.dt, self.df, self.time_downsample, self.freq_downsample
     
 class Process:
     def __init__(self, **kwargs):
@@ -113,7 +120,7 @@ class Process:
         self.cand_id = kwargs['voltage_file'].split('-')[-1].split('.')[0]
         self.logger.info('Processing candidate data: %s', self.cand_id)
         
-        old_dynamic_spectrum, start_mjd, candidate_data, dt = Read_Files(**kwargs).output()
+        old_dynamic_spectrum, start_mjd, candidate_data, dt, df, time_downsample, freq_downsample = Read_Files(**kwargs).output()
 
         try:
             ind_maxsnr = candidate_data["snr"].argmax()
@@ -125,6 +132,9 @@ class Process:
             sliced_dynamic_spectrum = old_dynamic_spectrum.sel(time=slice(t_rel-delta_t, t_rel+delta_t))
             self.dynamic_spectrum = sliced_dynamic_spectrum
             self.dt = dt
+            self.df = df
+            self.ft = time_downsample
+            self.ff = freq_downsample
             self.dm_0 = dm_0
 
         except Exception as e:
@@ -185,14 +195,28 @@ class Process:
                 coords={'freq': self.dynamic_spectrum.freq, 'tran': tran_vec}
             )
             phasor = np.exp(-2 * 1j * np.pi * (dt_vec * tran_vec))
-            self.dedispersed_spectrum = self.dynamic_spectrum.copy(data=np.fft.ifft((spectrum * phasor)).real.T)
+            dedispersed_spectrum = self.dynamic_spectrum.copy(data=np.fft.ifft((spectrum * phasor)).real.T)
+            self.dedispersed_spectrum = dedispersed_spectrum.sel(time=slice(self.t_opt-0.001, self.t_opt+0.001))
             self.logger.info("Dynamic Spectrum dedispersed succesfully.")
 
         except Exception as e:
             self.logger.error("Error in performing dedispersion: %s", str(e))
 
+    def gen_snr(self):
+        """Generate SNR for the dedispersed spectrum."""
+        try:
+            summed_dynamic_spectrum = self.dedispersed_spectrum.sum(dim='freq')
+            noise = summed_dynamic_spectrum.sel(time=slice(self.t_opt-0.0001, self.t_opt-0.00005))
+            self.noise_std = noise.std()
+            self.noise_mean = noise.mean()
+            self.snr_timeseries = (summed_dynamic_spectrum - self.noise_mean) / self.noise
+
+            self.logger.info("Generated SNR timeseries for the dedispersed spectrum.")
+        except Exception as e:
+            self.logger.error("Error in generating SNR: %s", str(e))
+
     def save_data(self):
         outfile = self.cand_id + ".h5"
 
     def output(self):
-        return self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.dm_opt, self.t_opt, self.dt
+        return self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.snr_timeseries, self.noise_std, self.noise_mean, self.dm_opt, self.t_opt, self.dt, self.df, self.ft, self.ff
