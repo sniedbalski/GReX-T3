@@ -136,6 +136,8 @@ class Process:
             self.ft = time_downsample
             self.ff = freq_downsample
             self.dm_0 = dm_0
+            self.t_0
+            self.start_mjd = start_mjd
 
         except Exception as e:
             self.logger.error("Error in calculating dispersive time delay: %s", str(e))
@@ -219,42 +221,45 @@ class Process:
         outfile = self.cand_id + ".h5"
 
     def output(self):
-        return self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.snr_timeseries, self.noise_std, self.noise_mean, self.dm_opt, self.t_opt, self.dt, self.df, self.ft, self.ff
+        return self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.snr_timeseries, self.noise_std, self.noise_mean, self.dm_opt, self.t_opt, self.dm_0, self.t_0, self.dt, self.df, self.ft, self.ff, self.start_mjd
     
 
 class Plotting:
     def __init__(self, **kwargs):
-        self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.snr_timeseries, self.noise_std, self.noise_mean, self.dm_opt, self.t_opt, self.dt, self.df, self.ft, self.ff = Process(**kwargs).output()
+        self.dynamic_spectrum, self.dm_t, self.dedispersed_spectrum, self.snr_timeseries, self.noise_std, self.noise_mean, self.dm_opt, self.t_opt, self.dm_0, self.t_0, self.dt, self.df, self.ft, self.ff, self.start_mjd = Process(**kwargs).output()
         #add dm_0 and t_0
 
     def plot(self):
         logging.info("Starting to plot")
         fig = plt.figure(figsize=(10, 10))
         grid = plt.GridSpec(6, 6)
-        
-        #SNR Plot
-        plt.subplot(grid[0, :6])
-        plt.plot(self.snr_timeseries['time'], self.snr_timeseries.values,
-                 lw=1., color='black')
-        plt.ylabel('SNR')
-        plt.xticks([])
 
-
-        plt.subplot(grid[1:3, :6])
         tmin = self.dynamic_spectrum['time'].min().values
         tmax = self.dynamic_spectrum['time'].max().values
         fmin = self.dynamic_spectrum['freq'].min().values
         fmax = self.dynamic_spectrum['freq'].max().values
         vmax = np.mean(self.dynamic_spectrum) + 2 * np.std(self.dynamic_spectrum)
-        plt.imshow(self.dynamic_spectrum, aspect='auto', vmax=vmax, interpolation='nearest',
-                   extent=(tmin, tmax, fmin, fmax))
+        
+        #SNR Plot
+        plt.subplot(grid[0, :6])
+        plt.plot(self.snr_timeseries['time'], self.snr_timeseries.values,
+                 lw=1., color='black')
+        plt.xlim(tmin, tmax)
+        plt.ylabel('SNR')
+        #plt.xlabel(f'{self.start_mjd} + Time (s)')
+        plt.xticks([])
+
+        plt.subplot(grid[1:3, :6])
+        #plt.imshow(self.dynamic_spectrum, aspect='auto', vmax=vmax, interpolation='nearest',extent=(tmin, tmax, fmin, fmax))
+        self.dynamic_spectrum.plot(x='time', vmax=vmax)
         plt.xlabel(f'Time (ms) + MJD {self.start_mjd}') #add start mjd
         plt.ylabel('Frequency (MHz)')
 
 
         plt.subplot(grid[4:6, :6])
-        plt.imshow(self.dm_t, aspect='auto', interpolation='nearest',
-                   extent=(tmin, tmax, 0, 2 * self.dm_opt))
+        #plt.imshow(self.dm_t, aspect='auto', interpolation='nearest', extent=(tmin, tmax, 0, 2 * self.dm_opt))
+        #plt.pcolormesh(self.dm_t['time'], self.dm_t['dm'], self.dm_t)
+        self.dm_t.plot(x='time')
         plt.xlabel(f'Time (ms) + MJD {self.start_mjd}')
         plt.ylabel(r'DM ($pc\cdot cm^{-3}$)')
         plt.ylim(self.dm_opt - 50, self.dm_opt + 50)
