@@ -8,27 +8,23 @@ packages = [{include = "grex_t3"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
-numpy = "1.26.4"
 pandas = "^2.0.2"
 astropy = "^5.3"
 keras = "^2.13.1"
 tensorflow = "^2.13.0"
 your = "^0.6.7"
-#jax = "^0.4.14"
-#jaxlib = "^0.4.14"
-jax = { version = "0.4.14", extras = ["cpu"] }
-jaxlib = { version = "0.4.14", extras = ["cpu"] }
+jax = "^0.4.14"
+jaxlib = "^0.4.14"
 paramiko = "^3.4.0"
 inotify = "^0.2.10"
 slack-sdk = "^3.27.1"
 xarray = "^2024.3.0"
+dask = "^2024.9.1"
 torch = "^2.3.0"
 tqdm = "^4.66.4"
-netcdf4 = "^1.5.8"
-dask = "^2023.3.1"
-clean_rfi = { git = "https://github.com/GReX-Telescope/clean_rfi.git", branch = "main" }
-jupyter = "^1.1.1"
-notebook = "^7.2.2"
+llvmlite = "^0.43.0"
+numpy = ">=1.23.5,<2.0.0"
+netCDF4 = "^1.7.1"
 
 [build-system]
 requires = ["poetry-core"]

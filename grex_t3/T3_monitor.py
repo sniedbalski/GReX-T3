@@ -11,14 +11,11 @@ import time
 import logging
 import cand_plotter
 
-logfile = '/home/user/grex/t3/GReX-T3/services/T3_plotter.log'
-env_dir = "/home/user/grex/t3/GReX-T3/grex_t3/"
+logfile = '/home/user/grex/t3/services/T3_plotter.log'
+env_dir = "/home/user/grex/t3/grex_t3/"
 mon_dir = "/hdd/data/voltages/" # monitoring dir                                                 
 dir_plot = "/hdd/data/candidates/T3/candplots/" # place to save output plots                     
 dir_fil  = "/hdd/data/candidates/T3/candfils/"
-
-# MAKE SURE TO CHANGE TO YOUR PREFERRED CHANNEL FOR NEW STATIONS!
-slack_channel_name = "candidates-harvard"
 
 # Create directories if they don't exist
 for directory in [mon_dir, dir_plot, dir_fil]:
@@ -60,8 +57,8 @@ def upload_to_slack(pdffile):
     
     try:
         # Upload the plot file to Slack
-        response = client.files_upload(
-            channels=slack_channel_name,
+        response = client.files_upload_v2(
+            channel="C07M2900B7W",
             file=pdffile,
             initial_comment=message
         )
@@ -69,7 +66,9 @@ def upload_to_slack(pdffile):
         print("Plot uploaded to Slack:", response["file"]["permalink"])
     except slk.errors.SlackApiError as err:
         print(f"Error uploading plot to Slack: {err}")
-
+    except Exception as err:
+        print(f"Unexpected {err=}, {type(err)=}")
+        raise 
 
 # Function to send a slack message (test)
 def send_to_slack(message):
@@ -95,14 +94,16 @@ def send_to_slack(message):
     # Define message parameters
     try:
         response = client.chat_postMessage(
-            channel="candidates",
+            channel="candidates-cuithaca",
             text=message
         )  
         
         print("Done", response.status_code)
     except slk.errors.SlackApiError as err:
         print(f"Error uploading plot to Slack: {err}")
-
+    except Exception as err:
+        print(f"Unexpected {err=}, {type(err)=}")
+        raise
 
 def process_candidate(filename, c):
     """Process a single candidate file and return the plot path"""

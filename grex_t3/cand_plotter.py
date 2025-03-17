@@ -13,7 +13,7 @@ import logging
 from your.formats.filwriter import make_sigproc_object
 import clean_rfi
 
-T3_path = '/home/user/zghuai/GReX-T3/grex_t3/'
+T3_path = os.getenv("POETRY_PROJECT_DIR")
 sys.path.append(T3_path)
 import candproc_tools as ct
 import analysis_tools as at
@@ -22,7 +22,7 @@ dir_mon  = "/hdd/data/voltages/"
 dir_plot = "/hdd/data/candidates/T3/candplots/"
 dir_fil  = "/hdd/data/candidates/T3/candfils/"
 cluster_output = "/hdd/data/candidates/T2/cluster_output.csv"
-logfile = '/home/user/grex/t3/GReX-T3/services/T3_plotter.log'
+logfile = '/home/cugrex/grex/t3/services/T3_plotter.log'
 logging.basicConfig(filename=logfile,
                     level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s',

@@ -1,0 +1,14 @@
+2025-03-17 13:45:47 - INFO - Starting cand_plotter.py!
+2025-03-17 13:45:47 - INFO - Starting the monitoring and T3-plotting service
+2025-03-17 13:50:05 - INFO - New NetCDF file created: grex_dump-250317aaeh.nc
+2025-03-17 13:50:05 - ERROR - Interrupted: [Errno 2] No such file or directory: '/home/user/grex/t3/GReX-T3/grex_t3/'
+2025-03-17 13:50:06 - INFO - Starting cand_plotter.py!
+2025-03-17 13:50:06 - INFO - Starting the monitoring and T3-plotting service
+2025-03-17 13:50:52 - INFO - New NetCDF file created: grex_dump-250317aaei.nc
+2025-03-17 13:50:52 - ERROR - Interrupted: [Errno 2] No such file or directory: '/home/user/grex/t3/GReX-T3/grex_t3/'
+2025-03-17 13:50:53 - INFO - Starting cand_plotter.py!
+2025-03-17 13:50:53 - INFO - Starting the monitoring and T3-plotting service
+2025-03-17 13:55:09 - INFO - New NetCDF file created: grex_dump-250317aaek.nc
+2025-03-17 13:55:09 - ERROR - Interrupted: [Errno 2] No such file or directory: '/home/user/grex/t3/GReX-T3/grex_t3/'
+2025-03-17 13:55:11 - INFO - Starting cand_plotter.py!
+2025-03-17 13:55:11 - INFO - Starting the monitoring and T3-plotting service
