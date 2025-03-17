@@ -255,7 +255,6 @@ class Plotting:
         plt.xlabel(f'Time (ms) + MJD {self.start_mjd}') #add start mjd
         plt.ylabel('Frequency (MHz)')
 
-
         plt.subplot(grid[4:6, :6])
         #plt.imshow(self.dm_t, aspect='auto', interpolation='nearest', extent=(tmin, tmax, 0, 2 * self.dm_opt))
         #plt.pcolormesh(self.dm_t['time'], self.dm_t['dm'], self.dm_t)
@@ -264,11 +263,9 @@ class Plotting:
         plt.ylabel(r'DM ($pc\cdot cm^{-3}$)')
         plt.ylim(self.dm_opt - 50, self.dm_opt + 50)
 
-
         fig.text(0.1, 0.875, f'Opt DM = {self.dm_opt} pc/cm^3', fontsize=12, fontweight='semibold')
         fig.text(0.1, 0.86, f'Opt T = {self.t_opt}', fontsize=12, fontweight='semibold')
 
-        
         plt.savefig(f'grex_cand{self.JSON.split(".")[0]}.png', bbox_inches='tight')
         logging.info("Saved the plot.")
         plt.show()
