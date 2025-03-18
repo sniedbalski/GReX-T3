@@ -11,8 +11,8 @@ import time
 import logging
 import cand_plotter
 
-logfile = '/home/user/grex/t3/services/T3_plotter.log'
-env_dir = "/home/user/grex/t3/grex_t3/"
+logfile = '/home/cugrex/grex/t3/services/T3_plotter.log'
+env_dir = "/home/cugrex/grex/t3/grex_t3/"
 mon_dir = "/hdd/data/voltages/" # monitoring dir                                                 
 dir_plot = "/hdd/data/candidates/T3/candplots/" # place to save output plots                     
 dir_fil  = "/hdd/data/candidates/T3/candfils/"
@@ -163,8 +163,6 @@ def main(path, post=True):
             
         except FileNotFoundError as e:
             logging.error(f"Required file not found: {str(e)}")
-        except cand_plotter.PlottingError as e:  # Assuming you have custom exceptions
-            logging.error(f"Error in candidate plotting: {str(e)}")
         except slk.errors.SlackApiError as e:
             logging.error(f"Slack API error: {str(e)}")
         except Exception as e:
