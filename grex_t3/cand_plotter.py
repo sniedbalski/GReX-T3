@@ -12,6 +12,7 @@ import os
 import logging
 from your.formats.filwriter import make_sigproc_object
 import clean_rfi
+from grex_t3 import database
 
 T3_path = os.getenv("POETRY_PROJECT_DIR")
 sys.path.append(T3_path)
@@ -207,8 +208,8 @@ def plot_grex(cand, tab, JSON, v=False, classify_ml=False):
     ----------
     Returns None
     """
-
-    isinjection = tab['isinjection'].values[0]
+    
+    isinjection = database.is_injection(tab["dm"].values[0], database.connect("/hdd/data/candidates.db"))
 
     # number of samples in the downsampled window
     window_time = 1024
